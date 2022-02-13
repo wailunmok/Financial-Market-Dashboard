@@ -3,7 +3,7 @@ A visualisation tool for financial market data from [Yahoo finance](https://fina
 This dashboard is a Python Dash app that is deployed via docker.
 
 Screenshot of the dashboard:
-![Screenshot](screenshot.png)
+![Screenshot](screenshot.PNG)
 
 ## Installation
 Build and run the docker image with the following commands:
