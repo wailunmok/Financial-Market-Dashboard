@@ -5,6 +5,7 @@ from plotly.subplots import make_subplots
 from prophet import Prophet
 from prophet.diagnostics import cross_validation
 from prophet.plot import plot_plotly, plot_components_plotly
+from tqdm import tqdm
 
 
 def get_model_forecast_and_validation(data_in, validation_steps, *argv):
@@ -42,7 +43,7 @@ def model_forecast(data_in, steps, *argv):
         # fit model
         with suppress_stdout_stderr():
             model = Prophet(**model_settings)
-            model.fit(df)
+            model.fit(df, iter=500)
 
         # forecast
         future = model.make_future_dataframe(periods=steps, freq=series.index.freq, include_history=False)
@@ -101,7 +102,7 @@ def model_validation(data_in, steps, func_model_forecast, *argv):
 
     # Loop over steps
     n_obs = data_in.shape[0]
-    for count in range(n_obs - steps, n_obs):
+    for count in tqdm(range(n_obs - steps, n_obs), desc='Validating Prophet model'):  # debug with tqdm
         # Initialise train test split
         train = data_in.iloc[:count, ]
         test = data_in.iloc[[count],]
@@ -113,7 +114,6 @@ def model_validation(data_in, steps, func_model_forecast, *argv):
         results.loc[test.index, (slice(None), 'forecast')] = forecast_res.loc['forecast',].values
         results.loc[test.index, (slice(None), 'ci_lower')] = forecast_res.loc['ci_lower',].values
         results.loc[test.index, (slice(None), 'ci_upper')] = forecast_res.loc['ci_upper',].values
-
     results_summary = model_validation_summary(results)
 
     return results, results_summary
@@ -206,65 +206,6 @@ def load(forecast_summary, forecast_results):
         os.makedirs(output_path)
     forecast_summary.to_csv(output_path + 'model_prophet_forecast_summary.csv')
     forecast_results.to_csv(output_path + 'model_prophet_forecast_results.csv')
-
-    return
-
-
-def model_dev(data_in):
-    # initialise
-    series = data_in['^AEX'].dropna()
-
-    df = pd.DataFrame()
-    df['ds'] = series.index
-    df['y'] = series.values
-
-    # Fit model
-    model = Prophet(growth='linear', seasonality_mode='additive', weekly_seasonality='auto', yearly_seasonality=True)
-    model.fit(df)
-
-    # forecast (daily freq)
-    future = model.make_future_dataframe(periods=12)
-    forecast = model.predict(future)
-    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-
-    # Cross validation fixed cutoff
-    val_steps = 12
-    cutoffs = series.index[-(val_steps + 1)]
-    horizon = series.index[-1] - cutoffs
-    df_cv = cross_validation(model, horizon=horizon, cutoffs=[cutoffs])
-
-    # Cross validation rolling cutoff (does not always work for month due to unequally spaced horizon)
-    val_steps = 12
-    cutoffs = series.index[-(val_steps + 1):-1].to_list()
-    horizon = (series.index[1:] - series.index[:-1]).max()
-    df_cv = cross_validation(model, horizon=horizon, cutoffs=cutoffs)
-
-    # cross validation 1 step
-    cutoffs = [series.index[-3], series.index[-2]]
-    horizon = series.index[-1] - series.index[-2]
-    df_cv = cross_validation(model, horizon=horizon, cutoffs=cutoffs)
-
-    # forecast test
-    df2 = df.iloc[:-1, ]
-    model = Prophet(growth='linear', seasonality_mode='additive', weekly_seasonality='auto', yearly_seasonality=True)
-    model.fit(df2)
-    future = model.make_future_dataframe(periods=2, freq=series.index.freq, include_history=False)
-    forecast = model.predict(future)
-    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-
-
-    # plot (does not work in debug)
-    # fig1 = model.plot(forecast)
-    # fig2 = model.plot_components(forecast)
-
-    # plotly
-    fig = plot_plotly(model, forecast)
-    fig.show()
-
-    fig = plot_components_plotly(model, forecast)
-    fig.show()
-
-    # extra: hyperparameter tuning
 
     return
 

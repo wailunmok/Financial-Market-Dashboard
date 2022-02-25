@@ -12,10 +12,11 @@ services:
     volumes:
       - output:/wd/output
     networks:
-      - network 
-    
+      - network
+    environment:
+      - PYTHONUNBUFFERED=1  # send python output to container log
 
-      
+
 networks:
   network:
     driver: bridge

@@ -64,7 +64,7 @@ def create_dash_forecast_figure(dict_fc_res, df_level):
     n_cols = len(dict_fc_res)  # number of models
     n_rows = df_level.shape[1]  # number of time series
     subplot_titles = [ts + ' - ' + model for ts in df_level.columns for model in dict_fc_res.keys()]
-    fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles, vertical_spacing=0.02)
+    fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles, vertical_spacing=0.15 / n_rows)
 
     # loop over models
     for c, (model, df_fc_ret) in enumerate(dict_fc_res.items()):

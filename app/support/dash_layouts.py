@@ -57,6 +57,7 @@ checklist_models = dbc.Checklist(
         {"label": "Benchmark - buy if positive", "value": "Benchmark-positive"},
         {"label": "Benchmark - buy if negative", "value": "Benchmark-negative"},
         {"label": "ARMA(p,q)", "value": "ARMA"},
+        {"label": "Prophet - additive trend/seasonality", "value": "Prophet"}
     ],
     id="checklist-models"
     # inline=True
@@ -138,8 +139,9 @@ row_forecast_settings = dbc.Row([
     dbc.Col(input_val_steps, width="auto", align="top"),
     dbc.Col(html.Div("Models:"), width="auto", style={"textAlign": "right", "margin": "10px", "margin-left": "60px"}),
     dbc.Col(checklist_models, width="auto", style={"margin": "10px"}),
-    dbc.Col(html.Div("(p,q)="), width="auto", style={"textAlign": "right", "margin": "10px"}, align="end"),
-    dbc.Col(input_arma, width="auto", align="end"),
+    dbc.Col(html.Div("(p,q)="), width="auto", style={"textAlign": "right", "margin": "10px", "margin-bottom": "30px"},
+            align="end"),
+    dbc.Col(input_arma, width="auto", style={"margin-bottom": "20px"}, align="end"),
 ],
     no_gutters=True, justify="start", align="center"
 )

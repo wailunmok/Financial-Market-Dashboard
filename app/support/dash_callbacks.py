@@ -6,6 +6,7 @@ from app import app
 
 # Import libraries
 import pandas as pd
+from collections import OrderedDict
 
 # import user libraries
 import support.data_processing as data_proc
@@ -13,6 +14,7 @@ import support.data_exploration as data_expl
 import support.dash_processing as dash_proc
 import support.model_arima as model_arima
 import support.model_benchmark as model_benchmark
+import support.model_prophet as model_prophet
 
 pd.options.mode.chained_assignment = None
 
@@ -130,7 +132,7 @@ def train_forecast_model(n_clicks, json_data, freq, models, arma_p, arma_q, val_
         data_ret = data_proc.get_data_slice(data, freq, 'return')
 
         # Loop over models
-        dict_fc_summary, dict_fc_res = dict(), dict()
+        dict_fc_summary, dict_fc_res = OrderedDict(), OrderedDict()
         for model in models:
             if model == 'Benchmark-positive':
                 dict_fc_summary[model], dict_fc_res[model] = model_benchmark.execute(data_ret, val_steps, True)
@@ -140,6 +142,8 @@ def train_forecast_model(n_clicks, json_data, freq, models, arma_p, arma_q, val_
                 model = f'ARMA({arma_p},{arma_q})'
                 arima_order = (arma_p, 0, arma_q)
                 dict_fc_summary[model], dict_fc_res[model] = model_arima.execute(data_ret, val_steps, arima_order)
+            elif model == 'Prophet':
+                dict_fc_summary[model], dict_fc_res[model] = model_prophet.execute(data_ret, val_steps)
 
         # Forecast results summary
         dict_fm = {'invest': "{}", 'accuracy': "{:.1%}", 'payout_from_100': "\u20ac {:.2f}"}
