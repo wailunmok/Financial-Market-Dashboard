@@ -11,7 +11,7 @@ See: https://dash-bootstrap-components.opensource.faculty.ai/docs/components/lay
 # Data input
 input_date = dcc.DatePickerRange(
     id='my-date-picker-range',
-    min_date_allowed=datetime(1995, 1, 1),
+    min_date_allowed=datetime(1950, 1, 1),
     max_date_allowed=datetime.now(),
     initial_visible_month=datetime.now(),
     start_date=datetime(2020, 1, 1),

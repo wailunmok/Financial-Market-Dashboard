@@ -13,6 +13,7 @@ import support.data_processing as data_proc
 import support.data_exploration as data_expl
 import support.model_arima as model_arima
 import support.model_benchmark as model_benchmark
+import support.model_prophet as model_prophet
 
 # Show plotly plots in browser
 pio.renderers.default = "browser"
@@ -35,7 +36,7 @@ def main():
     log('Job started...')
     start_date = datetime(2000, 1, 1)
     freq = 'BM'  # options: ['B', 'W-Fri', 'BM', 'BY']
-    validation_steps = 24
+    validation_steps = 12 #15*12
     order = (1, 0, 0)  # ARIMA order
     buy_positive = True  # Benchmark strategy: buy on positive or negative previous return
 
@@ -50,17 +51,26 @@ def main():
     # Train model
     log('Model training started...')
     data_in = data_proc.get_data_slice(data, freq, 'return')
-    fc_arima_smry, fc_arima_res = model_arima.execute(data_in, validation_steps, order)
     fc_benchmark_smry, fc_benchmark_res = model_benchmark.execute(data_in, validation_steps, buy_positive)
+    log('Model training started ARMA...')
+    fc_arima_smry, fc_arima_res = model_arima.execute(data_in, validation_steps, order)
+    log('Model training started Prophet...')
+    fc_prophet_smry, fc_prophet_res = model_prophet.execute(data_in, validation_steps)
 
-    # Example figure
-    fig = model_arima.plot_validation(fc_arima_res, 'ARMA forecast')
-    fig.show()
+
+    # Example figures
+    dict_fig = {'benchmark': fc_benchmark_res, 'arima': fc_arima_res, 'prophet': fc_prophet_res}
+    data_level = data_proc.get_data_slice(data, freq, 'level')
+    for k, v in dict_fig.items():
+        # fig = model_arima.plot_validation(v, k + ' forecast')  # return
+        fig = model_arima.plot_validation(v, k + ' forecast', data_level)  # level
+        fig.write_html(output_path + f'model_{k}_forecast_plot.html')
 
     # Print output
     print(stats)
     print(returns)
     print(fc_arima_smry)
+    print(fc_prophet_smry)
     log('Job Finished')
 
 

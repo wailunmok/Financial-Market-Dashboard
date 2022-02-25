@@ -1,8 +1,10 @@
 """ Library for model training: arima """
 import os
 import pandas as pd
-import statsmodels.api as sm
 from plotly.subplots import make_subplots
+from prophet import Prophet
+from prophet.diagnostics import cross_validation
+from prophet.plot import plot_plotly, plot_components_plotly
 
 
 def get_model_forecast_and_validation(data_in, validation_steps, *argv):
@@ -21,25 +23,70 @@ def get_model_forecast_and_validation(data_in, validation_steps, *argv):
     return results, res_validation
 
 
-def model_forecast(data_in, steps, order=(1, 0, 0)):
-    # Perform h-step ahead forecast with ARIMA model
+def model_forecast(data_in, steps, *argv):
+    # Perform h-step ahead forecast with prophet model
 
     # Initialise
     alpha = 0.05  # CI = [0.025, 0.975]
     results = pd.DataFrame(index=['forecast', 'ci_lower', 'ci_upper'], columns=data_in.columns)
 
+    # model settings
+    model_settings = {'growth': 'linear', 'seasonality_mode': 'additive', 'interval_width': (1 - alpha),
+                      'weekly_seasonality': 'auto', 'yearly_seasonality': True}
+
     # Loop over time series
     for ts in data_in.columns:
         series = data_in.loc[:, ts].dropna()
+        df = pd.DataFrame([series.index, series.values], index=['ds', 'y']).T
 
-        model = sm.tsa.arima.ARIMA(series, order=order)
-        res = model.fit(method='innovations_mle')
-        forecast = res.get_forecast(steps).summary_frame(alpha=alpha).iloc[-1, ]
-        results.loc[:, ts] = forecast[['mean', 'mean_ci_lower', 'mean_ci_upper']].values
+        # fit model
+        with suppress_stdout_stderr():
+            model = Prophet(**model_settings)
+            model.fit(df)
+
+        # forecast
+        future = model.make_future_dataframe(periods=steps, freq=series.index.freq, include_history=False)
+        forecast = model.predict(future).iloc[-1, ]
+        results.loc[:, ts] = forecast[['yhat', 'yhat_lower', 'yhat_upper']].values
 
     results = pd.concat([(results.loc[['forecast'], ] > 0).rename({'forecast': 'invest'}), results])
 
     return results
+
+
+# Decorator class to suppress pystan/prophet output
+# from https://stackoverflow.com/questions/11130156/suppress-stdout-stderr-print-from-python-functions
+class suppress_stdout_stderr(object):
+    '''
+    A context manager for doing a "deep suppression" of stdout and stderr in
+    Python, i.e. will suppress all print, even if the print originates in a
+    compiled C/Fortran sub-function.
+       This will not suppress raised exceptions, since exceptions are printed
+    to stderr just before a script exits, and after the context manager has
+    exited (at least, I think that is why it lets exceptions through).
+
+    '''
+    def __init__(self):
+        # Open a pair of null files
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
+        # Save the actual stdout (1) and stderr (2) file descriptors.
+        self.save_fds = (os.dup(1), os.dup(2))
+
+    def __enter__(self):
+        # Assign the null pointers to stdout and stderr.
+        os.dup2(self.null_fds[0], 1)
+        os.dup2(self.null_fds[1], 2)
+
+    def __exit__(self, *_):
+        # Re-assign the real stdout/stderr back to (1) and (2)
+        os.dup2(self.save_fds[0], 1)
+        os.dup2(self.save_fds[1], 2)
+        # Close the null files
+        os.close(self.null_fds[0])
+        os.close(self.null_fds[1])
+    # used like
+    #  with suppress_stdout_stderr():
+    #      p = Propet(*kwargs).fit(training_data)
 
 
 def model_validation(data_in, steps, func_model_forecast, *argv):
@@ -57,15 +104,15 @@ def model_validation(data_in, steps, func_model_forecast, *argv):
     for count in range(n_obs - steps, n_obs):
         # Initialise train test split
         train = data_in.iloc[:count, ]
-        test = data_in.iloc[[count], ]
+        test = data_in.iloc[[count],]
 
         # Forecast
         forecast_res = func_model_forecast(train, 1, *argv)
 
         # Save results
-        results.loc[test.index, (slice(None), 'forecast')] = forecast_res.loc['forecast', ].values
-        results.loc[test.index, (slice(None), 'ci_lower')] = forecast_res.loc['ci_lower', ].values
-        results.loc[test.index, (slice(None), 'ci_upper')] = forecast_res.loc['ci_upper', ].values
+        results.loc[test.index, (slice(None), 'forecast')] = forecast_res.loc['forecast',].values
+        results.loc[test.index, (slice(None), 'ci_lower')] = forecast_res.loc['ci_lower',].values
+        results.loc[test.index, (slice(None), 'ci_upper')] = forecast_res.loc['ci_upper',].values
 
     results_summary = model_validation_summary(results)
 
@@ -89,8 +136,8 @@ def model_validation_summary(forecast_results):
     ret_act = res.loc[:, (slice(None), 'actual')]
     payout = (ret_act.values * pos_ret_for.values + 1).prod(axis=0) * 100
 
-    results.loc['accuracy', ] = accuracy
-    results.loc['payout_from_100', ] = payout
+    results.loc['accuracy',] = accuracy
+    results.loc['payout_from_100',] = payout
 
     return results
 
@@ -157,11 +204,67 @@ def load(forecast_summary, forecast_results):
     output_path = os.getcwd() + '/output/'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    forecast_summary.to_csv(output_path + 'model_arima_forecast_summary.csv')
-    forecast_results.to_csv(output_path + 'model_arima_forecast_results.csv')
+    forecast_summary.to_csv(output_path + 'model_prophet_forecast_summary.csv')
+    forecast_results.to_csv(output_path + 'model_prophet_forecast_results.csv')
 
-    # fig = plot_validation(forecast_results, 'ARMA forecast')
-    # fig.write_html(output_path + 'model_arima_forecast_plot.html')
+    return
+
+
+def model_dev(data_in):
+    # initialise
+    series = data_in['^AEX'].dropna()
+
+    df = pd.DataFrame()
+    df['ds'] = series.index
+    df['y'] = series.values
+
+    # Fit model
+    model = Prophet(growth='linear', seasonality_mode='additive', weekly_seasonality='auto', yearly_seasonality=True)
+    model.fit(df)
+
+    # forecast (daily freq)
+    future = model.make_future_dataframe(periods=12)
+    forecast = model.predict(future)
+    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+
+    # Cross validation fixed cutoff
+    val_steps = 12
+    cutoffs = series.index[-(val_steps + 1)]
+    horizon = series.index[-1] - cutoffs
+    df_cv = cross_validation(model, horizon=horizon, cutoffs=[cutoffs])
+
+    # Cross validation rolling cutoff (does not always work for month due to unequally spaced horizon)
+    val_steps = 12
+    cutoffs = series.index[-(val_steps + 1):-1].to_list()
+    horizon = (series.index[1:] - series.index[:-1]).max()
+    df_cv = cross_validation(model, horizon=horizon, cutoffs=cutoffs)
+
+    # cross validation 1 step
+    cutoffs = [series.index[-3], series.index[-2]]
+    horizon = series.index[-1] - series.index[-2]
+    df_cv = cross_validation(model, horizon=horizon, cutoffs=cutoffs)
+
+    # forecast test
+    df2 = df.iloc[:-1, ]
+    model = Prophet(growth='linear', seasonality_mode='additive', weekly_seasonality='auto', yearly_seasonality=True)
+    model.fit(df2)
+    future = model.make_future_dataframe(periods=2, freq=series.index.freq, include_history=False)
+    forecast = model.predict(future)
+    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+
+
+    # plot (does not work in debug)
+    # fig1 = model.plot(forecast)
+    # fig2 = model.plot_components(forecast)
+
+    # plotly
+    fig = plot_plotly(model, forecast)
+    fig.show()
+
+    fig = plot_components_plotly(model, forecast)
+    fig.show()
+
+    # extra: hyperparameter tuning
 
     return
 
