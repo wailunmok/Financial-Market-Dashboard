@@ -7,6 +7,7 @@ from app import app
 # Import libraries
 import pandas as pd
 from collections import OrderedDict
+from datetime import datetime
 
 # import user libraries
 import support.data_processing as data_proc
@@ -56,6 +57,8 @@ def get_data(n_clicks, input1, input2, input3, input4, input5, input6, start_dat
     print(index_list)
 
     # Load data
+    start_date = datetime.strptime(start_date[:10], "%Y-%m-%d")
+    end_date = datetime.strptime(end_date[:10], "%Y-%m-%d")
     data = data_proc.execute(index=index_list, start_date=start_date, end_date=end_date)
 
     # dump to json

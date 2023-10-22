@@ -2,13 +2,15 @@
 import os
 import pandas_datareader.data as web
 from datetime import datetime
-import numpy as np
 import pandas as pd
+import yfinance as yf
+
 
 
 def extract(indexlist, start, end):
     # Yahoo finance data contains weekday data with some missing values
-    index_download = web.DataReader(indexlist, data_source='yahoo', start=start, end=end)
+    yf.pdr_override()
+    index_download = web.get_data_yahoo(indexlist, start=start, end=end)
     df_prices = index_download['Adj Close']
     df_prices = df_prices.dropna(how='all', axis=0).dropna(how='all', axis=1)
     return df_prices

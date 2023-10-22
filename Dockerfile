@@ -8,8 +8,10 @@ WORKDIR wd
 
 # Add and install requirements
 COPY app/requirements.txt .
-RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade pip setuptools wheel
 RUN pip3 install -r requirements.txt
+RUN pip3 install prophet==1.1.4
+
 
 # add remote file at root directory in container
 COPY app/ ./
